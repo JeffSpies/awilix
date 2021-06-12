@@ -26,7 +26,10 @@ export type InjectorFunction = <T extends object>(
  * A resolver object returned by asClass(), asFunction() or asValue().
  */
 export interface Resolver<T> extends ResolverOptions<T> {
-  resolve<U extends object>(container: AwilixContainer<U>): T
+  resolve<U extends object>(
+    container: AwilixContainer<U>,
+    resolveOpts?: ResolveOptions
+  ): T
 }
 
 /**
@@ -360,7 +363,8 @@ function wrapWithLocals<T extends object>(
  */
 function createInjectorProxy<T extends object>(
   container: AwilixContainer<T>,
-  injector: InjectorFunction
+  injector: InjectorFunction,
+  resolveOpts?: ResolveOptions
 ) {
   const locals = injector(container) as any
   const allKeys = uniq([
@@ -389,7 +393,7 @@ function createInjectorProxy<T extends object>(
         if (name in locals) {
           return locals[name]
         }
-        return container.resolve(name as string)
+        return container.resolve(name as string, resolveOpts)
       },
 
       /**
@@ -451,7 +455,8 @@ function generateResolve(fn: Function, dependencyParseTarget?: Function) {
   // Use a regular function instead of an arrow function to facilitate binding to the resolver.
   return function resolve<T extends object>(
     this: BuildResolver<any>,
-    container: AwilixContainer<T>
+    container: AwilixContainer<T>,
+    resolveOpts?: ResolveOptions
   ) {
     // Because the container holds a global reolutionMode we need to determine it in the proper order of precedence:
     // resolver -> container -> default value
@@ -463,7 +468,7 @@ function generateResolve(fn: Function, dependencyParseTarget?: Function) {
     if (injectionMode !== InjectionMode.CLASSIC) {
       // If we have a custom injector, we need to wrap the cradle.
       const cradle = this.injector
-        ? createInjectorProxy(container, this.injector)
+        ? createInjectorProxy(container, this.injector, resolveOpts)
         : container.cradle
 
       // Return the target injected with the cradle
@@ -477,7 +482,7 @@ function generateResolve(fn: Function, dependencyParseTarget?: Function) {
         : container.resolve
 
       const children = dependencies.map((p) =>
-        resolve(p.name, { allowUnregistered: p.optional })
+        resolve(p.name, resolveOpts || { allowUnregistered: p.optional })
       )
       return fn(...children)
     }
